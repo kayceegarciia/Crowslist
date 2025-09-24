@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Crowslist</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            background: #f4f4f4;
+        }
+
+        header {
+            background: #690000;
+            color: #fff;
+            padding: 1em;
+            text-align: center;
+        }
+
+        main {
+            max-width: 800px;
+            margin: 2em auto;
+            background: #fff;
+            padding: 2em;
+            border-radius: 8px;
+        }
+
+        h2 {
+            margin-top: 0;
+            color: #690000;
+        }
+
+        form {
+            margin-bottom: 2em;
+        }
+
+        label {
+            display: block;
+            margin-top: 1em;
+        }
+
+        input,
+        textarea,
+        select {
+            width: 100%;
+            padding: 0.5em;
+            margin-top: 0.5em;
+            border: 1px solid #690000;
+            border-radius: 4px;
+        }
+
+        button {
+            margin-top: 1em;
+            padding: 0.7em 1.5em;
+            background: #690000;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        li {
+            background: #fbeaea;
+            margin-bottom: 1em;
+            padding: 1em;
+            border-radius: 4px;
+            border-left: 5px solid #690000;
+        }
+
+        .category {
+            font-weight: bold;
+            color: #690000;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+            <div style="display: flex; align-items: center;">
+                <img src="logo_rect.png" alt="Crowslist Logo" style="width: 100px; margin-right: 16px;">
+                <div>
+                    <h1 style="margin: 0;">Crowslist</h1>
+                    <p style="margin: 0;">ASU's Marketplace</p>
+                </div>
+            </div>
+            <div>
+                <a href="#" style="color: #f0b425; margin: 0 10px; text-decoration: none; font-size: 18px;">Home</a>
+                <a href="#" style="color: #f0b425; margin: 0 10px; text-decoration: none; font-size: 18px;">Post a
+                    Listing</a>
+                <a href="#" style="color: #f0b425; margin: 0 10px; text-decoration: none; font-size: 18px;">My
+                    Listings</a>
+                <a href="#" style="color: #f0b425; margin: 0 10px; text-decoration: none; font-size: 18px;">Profile</a>
+                <a href="#" style="color: #f0b425; margin: 0 10px; text-decoration: none; font-size: 18px;">Logout</a>
+            </div>
+        </div>
+    </header>
+    <main>
+        <h2>Post a Listing</h2>
+        <form id="listingForm">
+            <label>
+                Title:
+                <input type="text" name="title" required>
+            </label>
+            <label>
+                Description:
+                <textarea name="description" required></textarea>
+            </label>
+            <label>
+                Category:
+                <select name="category" required>
+                    <option value="">Select</option>
+                    <option value="For Sale">For Sale</option>
+                    <option value="Jobs">Jobs</option>
+                    <option value="Housing">Housing</option>
+                    <option value="Services">Services</option>
+                </select>
+            </label>
+            <label>
+                Price:
+                <input type="number" name="price" min="0" step="0.01">
+            </label>
+            <button type="submit">Post</button>
+        </form>
+
+        <h2>Listings</h2>
+        <ul id="listings"></ul>
+    </main>
+    <script>
+        const form = document.getElementById('listingForm');
+        const listings = document.getElementById('listings');
+
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            const data = new FormData(form);
+            const title = data.get('title');
+            const description = data.get('description');
+            const category = data.get('category');
+            const price = data.get('price');
+
+            const li = document.createElement('li');
+            li.innerHTML = `
+                <span class="category">${category}</span>
+                <h3>${title}</h3>
+                <p>${description}</p>
+                ${price ? `<p><strong>Price:</strong> $${parseFloat(price).toFixed(2)}</p>` : ''}
+            `;
+            listings.prepend(li);
+            form.reset();
+        });
+    </script>
+</body>
+
+</html>
