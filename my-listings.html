@@ -132,7 +132,7 @@
             </div>
             <div>
                 <a href="home.html" class="nav-link">Home</a>
-                <a href="index.html" class="nav-link">Post a Listing</a>
+                <a href="post-listing.html" class="nav-link">Post a Listing</a>
                 <a href="my-listings.html" class="nav-link">My Listings</a>
                 <a href="profile.html" class="nav-link">Profile</a>
                 <a href="logout.html" class="nav-link">Logout</a>
@@ -193,10 +193,10 @@
             const listing = btn.closest('li');
             const status = listing.querySelector('.status');
             const actions = listing.querySelector('.listing-actions');
-            
+
             status.textContent = 'Sold';
             status.className = 'status status-sold';
-            
+
             // Remove sold button, keep only delete
             actions.innerHTML = '<button class="btn btn-delete" onclick="deleteListing(this)">Delete</button>';
         }
@@ -204,12 +204,12 @@
         function deleteListing(btn) {
             if (confirm('Are you sure you want to delete this listing?')) {
                 btn.closest('li').remove();
-                
+
                 // Check if no listings left
                 const listings = document.querySelectorAll('#myListings li');
                 if (listings.length === 0) {
-                    document.getElementById('myListings').innerHTML = 
-                        '<div class="empty-state"><p>You haven\'t posted any listings yet.</p><p><a href="index.html">Post your first listing</a></p></div>';
+                    document.getElementById('myListings').innerHTML =
+                        '<div class="empty-state"><p>You haven\'t posted any listings yet.</p><p><a href="post-listing.html">Post your first listing</a></p></div>';
                 }
             }
         }

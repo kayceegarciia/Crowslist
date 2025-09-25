@@ -64,7 +64,9 @@
             color: #690000;
         }
 
-        input, textarea, select {
+        input,
+        textarea,
+        select {
             width: 100%;
             padding: 0.5em;
             margin-top: 0.5em;
@@ -142,7 +144,7 @@
             </div>
             <div>
                 <a href="home.html" class="nav-link">Home</a>
-                <a href="index.html" class="nav-link">Post a Listing</a>
+                <a href="post-listing.html" class="nav-link">Post a Listing</a>
                 <a href="my-listings.html" class="nav-link">My Listings</a>
                 <a href="profile.html" class="nav-link">Profile</a>
                 <a href="logout.html" class="nav-link">Logout</a>
@@ -151,14 +153,14 @@
     </header>
     <main>
         <h2>My Profile</h2>
-        
+
         <div class="profile-section">
             <div class="profile-picture">
                 JD
             </div>
             <h3>John Doe</h3>
             <p>Computer Science Student | ASU Class of 2025</p>
-            
+
             <div class="stats">
                 <div class="stat">
                     <div class="stat-number">12</div>
@@ -178,26 +180,26 @@
         <form id="profileForm">
             <div class="form-section">
                 <h3>Personal Information</h3>
-                
+
                 <label for="firstName">First Name:</label>
                 <input type="text" id="firstName" name="firstName" value="John" required>
-                
+
                 <label for="lastName">Last Name:</label>
                 <input type="text" id="lastName" name="lastName" value="Doe" required>
-                
+
                 <label for="email">Email:</label>
                 <input type="email" id="email" name="email" value="john.doe@asu.edu" required>
-                
+
                 <label for="phone">Phone Number:</label>
                 <input type="tel" id="phone" name="phone" value="(480) 555-0123">
             </div>
 
             <div class="form-section">
                 <h3>Academic Information</h3>
-                
+
                 <label for="major">Major:</label>
                 <input type="text" id="major" name="major" value="Computer Science">
-                
+
                 <label for="graduationYear">Graduation Year:</label>
                 <select id="graduationYear" name="graduationYear">
                     <option value="2024">2024</option>
@@ -206,7 +208,7 @@
                     <option value="2027">2027</option>
                     <option value="2028">2028</option>
                 </select>
-                
+
                 <label for="campus">Campus:</label>
                 <select id="campus" name="campus">
                     <option value="Tempe" selected>Tempe</option>
@@ -219,36 +221,38 @@
             <div class="form-section">
                 <h3>Bio</h3>
                 <label for="bio">Tell others about yourself:</label>
-                <textarea id="bio" name="bio" rows="4" placeholder="Write a brief bio about yourself...">Computer Science student passionate about technology and innovation. Always looking for great deals on textbooks and tech gear!</textarea>
+                <textarea id="bio" name="bio" rows="4"
+                    placeholder="Write a brief bio about yourself...">Computer Science student passionate about technology and innovation. Always looking for great deals on textbooks and tech gear!</textarea>
             </div>
 
             <div class="form-section">
                 <h3>Preferences</h3>
-                
+
                 <label for="preferredContact">Preferred Contact Method:</label>
                 <select id="preferredContact" name="preferredContact">
                     <option value="email" selected>Email</option>
                     <option value="phone">Phone</option>
                     <option value="both">Both</option>
                 </select>
-                
+
                 <label>
-                    <input type="checkbox" name="notifications" checked> 
+                    <input type="checkbox" name="notifications" checked>
                     Receive email notifications for new listings in my categories
                 </label>
-                
+
                 <label>
-                    <input type="checkbox" name="messages" checked> 
+                    <input type="checkbox" name="messages" checked>
                     Allow other users to message me directly
                 </label>
             </div>
 
             <button type="submit">Update Profile</button>
-            <button type="button" onclick="changePassword()" style="background: #f0b425; margin-left: 1em;">Change Password</button>
+            <button type="button" onclick="changePassword()" style="background: #f0b425; margin-left: 1em;">Change
+                Password</button>
         </form>
     </main>
     <script>
-        document.getElementById('profileForm').addEventListener('submit', function(e) {
+        document.getElementById('profileForm').addEventListener('submit', function (e) {
             e.preventDefault();
             alert('Profile updated successfully!');
         });
