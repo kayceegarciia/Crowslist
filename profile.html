@@ -155,23 +155,23 @@
         <h2>My Profile</h2>
 
         <div class="profile-section">
-            <div class="profile-picture">
-                JD
+            <div class="profile-picture" id="profilePicture">
+                --
             </div>
-            <h3>John Doe</h3>
-            <p>Computer Science Student | ASU Class of 2025</p>
+            <h3 id="profileName">Loading...</h3>
+            <p id="profileInfo">Loading profile information...</p>
 
             <div class="stats">
                 <div class="stat">
-                    <div class="stat-number">12</div>
+                    <div class="stat-number" id="totalListings">--</div>
                     <div class="stat-label">Total Listings</div>
                 </div>
                 <div class="stat">
-                    <div class="stat-number">8</div>
+                    <div class="stat-number" id="itemsSold">--</div>
                     <div class="stat-label">Items Sold</div>
                 </div>
                 <div class="stat">
-                    <div class="stat-number">4.8</div>
+                    <div class="stat-number" id="userRating">--</div>
                     <div class="stat-label">Rating</div>
                 </div>
             </div>
@@ -182,28 +182,29 @@
                 <h3>Personal Information</h3>
 
                 <label for="firstName">First Name:</label>
-                <input type="text" id="firstName" name="firstName" value="John" required>
+                <input type="text" id="firstName" name="firstName" value="" required>
 
                 <label for="lastName">Last Name:</label>
-                <input type="text" id="lastName" name="lastName" value="Doe" required>
+                <input type="text" id="lastName" name="lastName" value="" required>
 
                 <label for="email">Email:</label>
-                <input type="email" id="email" name="email" value="john.doe@asu.edu" required>
+                <input type="email" id="email" name="email" value="" required>
 
                 <label for="phone">Phone Number:</label>
-                <input type="tel" id="phone" name="phone" value="(480) 555-0123">
+                <input type="tel" id="phone" name="phone" value="">
             </div>
 
             <div class="form-section">
                 <h3>Academic Information</h3>
 
                 <label for="major">Major:</label>
-                <input type="text" id="major" name="major" value="Computer Science">
+                <input type="text" id="major" name="major" value="">
 
                 <label for="graduationYear">Graduation Year:</label>
                 <select id="graduationYear" name="graduationYear">
+                    <option value="">Select Year</option>
                     <option value="2024">2024</option>
-                    <option value="2025" selected>2025</option>
+                    <option value="2025">2025</option>
                     <option value="2026">2026</option>
                     <option value="2027">2027</option>
                     <option value="2028">2028</option>
@@ -211,7 +212,8 @@
 
                 <label for="campus">Campus:</label>
                 <select id="campus" name="campus">
-                    <option value="Tempe" selected>Tempe</option>
+                    <option value="">Select Campus</option>
+                    <option value="Tempe">Tempe</option>
                     <option value="Downtown Phoenix">Downtown Phoenix</option>
                     <option value="Polytechnic">Polytechnic</option>
                     <option value="West">West</option>
@@ -221,8 +223,7 @@
             <div class="form-section">
                 <h3>Bio</h3>
                 <label for="bio">Tell others about yourself:</label>
-                <textarea id="bio" name="bio" rows="4"
-                    placeholder="Write a brief bio about yourself...">Computer Science student passionate about technology and innovation. Always looking for great deals on textbooks and tech gear!</textarea>
+                <textarea id="bio" name="bio" rows="4" placeholder="Write a brief bio about yourself..."></textarea>
             </div>
 
             <div class="form-section">
@@ -230,18 +231,18 @@
 
                 <label for="preferredContact">Preferred Contact Method:</label>
                 <select id="preferredContact" name="preferredContact">
-                    <option value="email" selected>Email</option>
+                    <option value="email">Email</option>
                     <option value="phone">Phone</option>
                     <option value="both">Both</option>
                 </select>
 
                 <label>
-                    <input type="checkbox" name="notifications" checked>
+                    <input type="checkbox" id="notifications" name="notifications">
                     Receive email notifications for new listings in my categories
                 </label>
 
                 <label>
-                    <input type="checkbox" name="messages" checked>
+                    <input type="checkbox" id="messages" name="messages">
                     Allow other users to message me directly
                 </label>
             </div>
@@ -252,15 +253,155 @@
         </form>
     </main>
     <script>
-        document.getElementById('profileForm').addEventListener('submit', function (e) {
+        let currentUser = null;
+
+        // Check authentication and load profile on page load
+        async function loadProfile() {
+            try {
+                // Check if user is authenticated
+                const authResponse = await fetch('/api/auth/check');
+                const authData = await authResponse.json();
+
+                if (!authData.authenticated) {
+                    // Redirect to login if not authenticated
+                    window.location.href = '/login';
+                    return;
+                }
+
+                // Load user profile data
+                const profileResponse = await fetch('/api/profile');
+                if (!profileResponse.ok) {
+                    throw new Error('Failed to load profile');
+                }
+
+                const userData = await profileResponse.json();
+                currentUser = userData;
+
+                // Update profile picture initials
+                const initials = (userData.first_name.charAt(0) + userData.last_name.charAt(0)).toUpperCase();
+                document.getElementById('profilePicture').textContent = initials;
+
+                // Update profile name and info
+                document.getElementById('profileName').textContent = `${userData.first_name} ${userData.last_name}`;
+                const majorInfo = userData.major ? `${userData.major} Student` : 'ASU Student';
+                const yearInfo = userData.graduation_year ? ` | ASU Class of ${userData.graduation_year}` : '';
+                document.getElementById('profileInfo').textContent = majorInfo + yearInfo;
+
+                // Load user's listing statistics
+                await loadUserStats();
+
+                // Populate form fields
+                populateForm(userData);
+
+            } catch (error) {
+                console.error('Error loading profile:', error);
+                document.getElementById('profileName').textContent = 'Error loading profile';
+                document.getElementById('profileInfo').textContent = 'Please try refreshing the page';
+            }
+        }
+
+        // Load user statistics (total listings, sold items, etc.)
+        async function loadUserStats() {
+            try {
+                const response = await fetch('/api/listings/my');
+                if (response.ok) {
+                    const listings = await response.json();
+                    const totalListings = listings.length;
+                    const soldListings = listings.filter(listing => listing.status === 'sold').length;
+
+                    document.getElementById('totalListings').textContent = totalListings;
+                    document.getElementById('itemsSold').textContent = soldListings;
+                    // For now, keep rating as placeholder - would need a rating system to calculate real rating
+                    document.getElementById('userRating').textContent = '5.0';
+                } else {
+                    throw new Error('Failed to load user statistics');
+                }
+            } catch (error) {
+                console.error('Error loading user stats:', error);
+                document.getElementById('totalListings').textContent = '0';
+                document.getElementById('itemsSold').textContent = '0';
+                document.getElementById('userRating').textContent = '--';
+            }
+        }
+
+        // Populate form with user data
+        function populateForm(userData) {
+            document.getElementById('firstName').value = userData.first_name || '';
+            document.getElementById('lastName').value = userData.last_name || '';
+            document.getElementById('email').value = userData.email || '';
+            document.getElementById('phone').value = userData.phone || '';
+            document.getElementById('major').value = userData.major || '';
+            document.getElementById('bio').value = userData.bio || '';
+
+            // Set graduation year
+            if (userData.graduation_year) {
+                document.getElementById('graduationYear').value = userData.graduation_year;
+            }
+
+            // Set campus
+            if (userData.campus) {
+                document.getElementById('campus').value = userData.campus;
+            }
+
+            // Set preferred contact method
+            if (userData.preferred_contact) {
+                document.getElementById('preferredContact').value = userData.preferred_contact;
+            }
+
+            // Set checkboxes
+            document.getElementById('notifications').checked = userData.notifications == 1;
+            document.getElementById('messages').checked = userData.messages == 1;
+        }
+
+        // Handle form submission
+        document.getElementById('profileForm').addEventListener('submit', async function (e) {
             e.preventDefault();
-            alert('Profile updated successfully!');
+
+            const formData = new FormData(this);
+            const updateData = {
+                firstName: formData.get('firstName'),
+                lastName: formData.get('lastName'),
+                phone: formData.get('phone'),
+                major: formData.get('major'),
+                graduationYear: parseInt(formData.get('graduationYear')) || null,
+                campus: formData.get('campus'),
+                bio: formData.get('bio'),
+                preferredContact: formData.get('preferredContact'),
+                notifications: document.getElementById('notifications').checked,
+                messages: document.getElementById('messages').checked
+            };
+
+            try {
+                const response = await fetch('/api/profile', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(updateData)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert('Profile updated successfully!');
+                    // Reload the profile to show updated data
+                    await loadProfile();
+                } else {
+                    alert('Error updating profile: ' + (result.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error updating profile:', error);
+                alert('Network error. Please try again.');
+            }
         });
 
         function changePassword() {
             // In a real app, this would open a password change modal or redirect
             alert('Password change functionality would be implemented here');
         }
+
+        // Load profile when page loads
+        loadProfile();
     </script>
 </body>
 
