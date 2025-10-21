@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Crowslist - Register</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Alan+Sans:wght@300..900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Alan Sans', Arial, sans-serif;
+            margin: 0;
+            background: #f4f4f4;
+            padding: 2em 0;
+        }
+
+        .register-container {
+            background: #fff;
+            padding: 3em;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            max-width: 500px;
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        .logo-section {
+            text-align: center;
+            margin-bottom: 2em;
+        }
+
+        .logo {
+            width: 80px;
+            margin-bottom: 1em;
+        }
+
+        h1 {
+            color: #690000;
+            margin: 0;
+            font-size: 24px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin: 0;
+            font-size: 14px;
+        }
+
+        h2 {
+            color: #690000;
+            margin-bottom: 1.5em;
+            text-align: center;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 1em;
+            margin-bottom: 1.5em;
+        }
+
+        .form-group {
+            margin-bottom: 1.5em;
+            flex: 1;
+        }
+
+        .form-group.full-width {
+            flex: 1 1 100%;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5em;
+            font-weight: bold;
+            color: #690000;
+        }
+
+        input,
+        select,
+        textarea {
+            width: 100%;
+            padding: 0.7em;
+            border: 1px solid #690000;
+            border-radius: 4px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #f0b425;
+            box-shadow: 0 0 5px rgba(240, 180, 37, 0.3);
+        }
+
+        textarea {
+            resize: vertical;
+            height: 80px;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 0.8em;
+            background: #690000;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+
+        .btn:hover {
+            background: #520000;
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .links {
+            text-align: center;
+            margin-top: 1.5em;
+        }
+
+        .links a {
+            color: #690000;
+            text-decoration: none;
+        }
+
+        .links a:hover {
+            text-decoration: underline;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 0.7em;
+            border-radius: 4px;
+            margin-bottom: 1em;
+            display: none;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 0.7em;
+            border-radius: 4px;
+            margin-bottom: 1em;
+            display: none;
+        }
+
+        .password-requirements {
+            font-size: 12px;
+            color: #666;
+            margin-top: 0.3em;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="register-container">
+        <div class="logo-section">
+            <img src="logo.png" alt="Crowslist Logo" class="logo">
+            <h1>Crowslist</h1>
+            <p class="subtitle">ASU's Marketplace</p>
+        </div>
+
+        <h2>Create Your Account</h2>
+
+        <div id="errorMessage" class="error"></div>
+        <div id="successMessage" class="success"></div>
+
+        <form id="registerForm">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="firstName">First Name:</label>
+                    <input type="text" id="firstName" name="firstName" required placeholder="John">
+                </div>
+
+                <div class="form-group">
+                    <label for="lastName">Last Name:</label>
+                    <input type="text" id="lastName" name="lastName" required placeholder="Doe">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="email">ASU Email Address:</label>
+                <input type="email" id="email" name="email" required placeholder="john.doe@asu.edu"
+                    pattern=".*@asu\.edu$">
+                <div class="password-requirements">Must be a valid ASU email address (@asu.edu)</div>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password:</label>
+                <input type="password" id="password" name="password" required placeholder="Create a strong password"
+                    minlength="6">
+                <div class="password-requirements">Minimum 6 characters</div>
+            </div>
+
+            <div class="form-group">
+                <label for="phone">Phone Number (Optional):</label>
+                <input type="tel" id="phone" name="phone" placeholder="(480) 555-0123">
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="major">Major:</label>
+                    <input type="text" id="major" name="major" placeholder="Computer Science">
+                </div>
+
+                <div class="form-group">
+                    <label for="graduationYear">Graduation Year:</label>
+                    <select id="graduationYear" name="graduationYear">
+                        <option value="">Select Year</option>
+                        <option value="2024">2024</option>
+                        <option value="2025">2025</option>
+                        <option value="2026">2026</option>
+                        <option value="2027">2027</option>
+                        <option value="2028">2028</option>
+                        <option value="2029">2029</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="campus">Campus:</label>
+                <select id="campus" name="campus">
+                    <option value="">Select Campus</option>
+                    <option value="Tempe">Tempe</option>
+                    <option value="Downtown Phoenix">Downtown Phoenix</option>
+                    <option value="Polytechnic">Polytechnic</option>
+                    <option value="West">West</option>
+                </select>
+            </div>
+
+            <button type="submit" class="btn" id="registerBtn">Create Account</button>
+        </form>
+
+        <div class="links">
+            <p>Already have an account? <a href="login.html">Login here</a></p>
+            <p><a href="home.html">← Back to Home</a></p>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('registerForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const errorDiv = document.getElementById('errorMessage');
+            const successDiv = document.getElementById('successMessage');
+            const registerBtn = document.getElementById('registerBtn');
+
+            // Hide previous messages
+            errorDiv.style.display = 'none';
+            successDiv.style.display = 'none';
+
+            // Validate ASU email
+            const email = document.getElementById('email').value;
+            if (!email.endsWith('@asu.edu')) {
+                errorDiv.textContent = 'Please use a valid ASU email address (@asu.edu)';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            // Disable button
+            registerBtn.disabled = true;
+            registerBtn.textContent = 'Creating Account...';
+
+            const formData = new FormData(this);
+            const registerData = {
+                email: formData.get('email'),
+                password: formData.get('password'),
+                firstName: formData.get('firstName'),
+                lastName: formData.get('lastName'),
+                phone: formData.get('phone'),
+                major: formData.get('major'),
+                graduationYear: parseInt(formData.get('graduationYear')) || null,
+                campus: formData.get('campus')
+            };
+
+            try {
+                const response = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(registerData)
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    successDiv.textContent = 'Account created successfully! Redirecting...';
+                    successDiv.style.display = 'block';
+
+                    // Redirect to home page after a short delay
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 1500);
+                } else {
+                    errorDiv.textContent = data.error || 'Registration failed';
+                    errorDiv.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Registration error:', error);
+                errorDiv.textContent = 'Network error. Please try again.';
+                errorDiv.style.display = 'block';
+            } finally {
+                // Re-enable button
+                registerBtn.disabled = false;
+                registerBtn.textContent = 'Create Account';
+            }
+        });
+
+        // Check if user is already logged in
+        async function checkAuth() {
+            try {
+                const response = await fetch('/api/auth/check');
+                const data = await response.json();
+
+                if (data.authenticated) {
+                    // User is already logged in, redirect to home
+                    window.location.href = '/';
+                }
+            } catch (error) {
+                // Not logged in, continue to show registration page
+                console.log('Not authenticated');
+            }
+        }
+
+        checkAuth();
+    </script>
+</body>
+
+</html>
