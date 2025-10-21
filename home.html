@@ -107,7 +107,7 @@
                     <p style="margin: 0;">ASU's Marketplace</p>
                 </div>
             </div>
-            <div>
+            <div class="nav-links">
                 <a href="home.html" class="nav-link">Home</a>
                 <a href="post-listing.html" class="nav-link">Post a Listing</a>
                 <a href="my-listings.html" class="nav-link">My Listings</a>
@@ -128,60 +128,166 @@
         <div class="filter-section">
             <select id="categoryFilter" onchange="filterByCategory()">
                 <option value="">All Categories</option>
-                <option value="For Sale">For Sale</option>
-                <option value="Jobs">Jobs</option>
-                <option value="Housing">Housing</option>
+                <option value="Job">Job</option>
+                <option value="Books">Books</option>
+                <option value="Furniture">Furniture</option>
+                <option value="Technology">Technology</option>
                 <option value="Services">Services</option>
+                <option value="Miscellaneous">Miscellaneous</option>
+            </select>
+            <select id="sortFilter" onchange="sortListings()">
+                <option value="date_desc">Newest First</option>
+                <option value="date_asc">Oldest First</option>
+                <option value="price_asc">Price: Low to High</option>
+                <option value="price_desc">Price: High to Low</option>
             </select>
         </div>
 
         <h3>Recent Listings</h3>
-        <ul id="listings">
-            <li>
-                <span class="category">For Sale</span>
-                <h3>Textbook: Calculus Early Transcendentals</h3>
-                <p>Barely used textbook for MAT 270. Great condition, no highlighting or writing.</p>
-                <p><strong>Price:</strong> $120.00</p>
-            </li>
-            <li>
-                <span class="category">Housing</span>
-                <h3>Roommate Needed - Vista del Sol</h3>
-                <p>Looking for a roommate to share a 2BR apartment near campus. $650/month including utilities.</p>
-                <p><strong>Price:</strong> $650.00</p>
-            </li>
-            <li>
-                <span class="category">Jobs</span>
-                <h3>Tutor Needed for Computer Science</h3>
-                <p>Need help with CSE 110 assignments. Flexible schedule, good pay.</p>
-                <p><strong>Price:</strong> $25.00</p>
-            </li>
-            <li>
-                <span class="category">Services</span>
-                <h3>Professional Resume Writing</h3>
-                <p>Get your resume professionally written and formatted. Quick turnaround.</p>
-                <p><strong>Price:</strong> $45.00</p>
-            </li>
-        </ul>
+        <div id="loadingMessage" style="text-align: center; padding: 2em; color: #666;">
+            Loading listings...
+        </div>
+        <ul id="listings"></ul>
     </main>
     <script>
+        let allListings = [];
+        let currentFilter = '';
+        let currentSort = 'date_desc';
+
+        // Load listings on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadListings();
+            checkAuthStatus();
+        });
+
+        async function loadListings() {
+            try {
+                const params = new URLSearchParams();
+                if (currentFilter) params.append('category', currentFilter);
+                if (currentSort) params.append('sort', currentSort);
+
+                const response = await fetch(`/api/listings?${params}`);
+                const listings = await response.json();
+                
+                allListings = listings;
+                displayListings(listings);
+            } catch (error) {
+                console.error('Error loading listings:', error);
+                document.getElementById('listings').innerHTML = '<li style="text-align: center; color: #666;">Error loading listings. Please try again.</li>';
+            }
+        }
+
+        function displayListings(listings) {
+            const listingsContainer = document.getElementById('listings');
+            const loadingMessage = document.getElementById('loadingMessage');
+            
+            loadingMessage.style.display = 'none';
+
+            if (listings.length === 0) {
+                listingsContainer.innerHTML = '<li style="text-align: center; color: #666;">No listings found.</li>';
+                return;
+            }
+
+            listingsContainer.innerHTML = listings.map(listing => `
+                <li>
+                    <span class="category">${listing.category}</span>
+                    <h3>${escapeHtml(listing.title)}</h3>
+                    <p>${escapeHtml(listing.description)}</p>
+                    ${listing.price ? `<p><strong>Price:</strong> $${parseFloat(listing.price).toFixed(2)}</p>` : ''}
+                    <p><strong>Posted by:</strong> ${escapeHtml(listing.first_name)} ${escapeHtml(listing.last_name)}</p>
+                    <p><strong>Posted:</strong> ${formatDate(listing.created_at)}</p>
+                    ${listing.images && listing.images.length > 0 ? `
+                        <div class="listing-images">
+                            ${listing.images.slice(0, 3).map(img => `
+                                <img src="/uploads/${img}" alt="Listing image" style="width: 100px; height: 100px; object-fit: cover; margin: 5px; border-radius: 4px;">
+                            `).join('')}
+                            ${listing.images.length > 3 ? `<span style="color: #666;">+${listing.images.length - 3} more</span>` : ''}
+                        </div>
+                    ` : ''}
+                </li>
+            `).join('');
+        }
+
         function searchListings() {
             const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-            const listings = document.querySelectorAll('#listings li');
+            
+            if (!searchTerm) {
+                displayListings(allListings);
+                return;
+            }
 
-            listings.forEach(listing => {
-                const text = listing.textContent.toLowerCase();
-                listing.style.display = text.includes(searchTerm) ? 'block' : 'none';
-            });
+            const filteredListings = allListings.filter(listing => 
+                listing.title.toLowerCase().includes(searchTerm) || 
+                listing.description.toLowerCase().includes(searchTerm)
+            );
+            
+            displayListings(filteredListings);
         }
 
         function filterByCategory() {
-            const selectedCategory = document.getElementById('categoryFilter').value;
-            const listings = document.querySelectorAll('#listings li');
+            currentFilter = document.getElementById('categoryFilter').value;
+            loadListings();
+        }
 
-            listings.forEach(listing => {
-                const category = listing.querySelector('.category').textContent;
-                listing.style.display = selectedCategory === '' || category === selectedCategory ? 'block' : 'none';
-            });
+        function sortListings() {
+            currentSort = document.getElementById('sortFilter').value;
+            loadListings();
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            const now = new Date();
+            const diffTime = Math.abs(now - date);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            if (diffDays === 1) return '1 day ago';
+            if (diffDays < 7) return `${diffDays} days ago`;
+            if (diffDays < 30) return `${Math.ceil(diffDays / 7)} weeks ago`;
+            return date.toLocaleDateString();
+        }
+
+        async function checkAuthStatus() {
+            try {
+                const response = await fetch('/api/auth/check');
+                const data = await response.json();
+                
+                if (data.authenticated) {
+                    // User is logged in, show user menu
+                    updateNavigationForLoggedInUser(data.userEmail);
+                } else {
+                    // User is not logged in, show login/register links
+                    updateNavigationForVisitor();
+                }
+            } catch (error) {
+                console.log('Not authenticated');
+                updateNavigationForVisitor();
+            }
+        }
+
+        function updateNavigationForLoggedInUser(email) {
+            const navLinks = document.querySelector('.nav-links');
+            navLinks.innerHTML = `
+                <a href="home.html" class="nav-link">Home</a>
+                <a href="post-listing.html" class="nav-link">Post a Listing</a>
+                <a href="my-listings.html" class="nav-link">My Listings</a>
+                <a href="profile.html" class="nav-link">Profile</a>
+                <a href="logout.html" class="nav-link">Logout</a>
+            `;
+        }
+
+        function updateNavigationForVisitor() {
+            const navLinks = document.querySelector('.nav-links');
+            navLinks.innerHTML = `
+                <a href="home.html" class="nav-link">Home</a>
+                <a href="login.html" class="nav-link">Login</a>
+                <a href="register.html" class="nav-link">Register</a>
+            `;
         }
     </script>
 </body>

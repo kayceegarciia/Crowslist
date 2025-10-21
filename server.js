@@ -4,6 +4,8 @@ const bcrypt = require('bcryptjs');
 const session = require('express-session');
 const cors = require('cors');
 const path = require('path');
+const multer = require('multer');
+const crypto = require('crypto');
 require('dotenv').config();
 
 const app = express();
@@ -12,11 +14,42 @@ const PORT = process.env.PORT || 3000;
 // Database connection
 const db = new sqlite3.Database('crowslist.db');
 
+// Configure multer for image uploads
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, 'uploads/');
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+const upload = multer({ 
+    storage: storage,
+    limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB limit
+        files: 5 // Maximum 5 files
+    },
+    fileFilter: function (req, file, cb) {
+        const allowedTypes = /jpeg|jpg|png|gif/;
+        const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+        const mimetype = allowedTypes.test(file.mimetype);
+        
+        if (mimetype && extname) {
+            return cb(null, true);
+        } else {
+            cb(new Error('Only image files are allowed'));
+        }
+    }
+});
+
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cors());
 app.use(express.static('.'));
+app.use('/uploads', express.static('uploads'));
 
 // Session configuration
 app.use(session({
@@ -53,11 +86,20 @@ app.get('/register', (req, res) => {
     res.sendFile(path.join(__dirname, 'register.html'));
 });
 
+app.get('/verify-email', (req, res) => {
+    res.sendFile(path.join(__dirname, 'verify-email.html'));
+});
+
 // Auth Routes
 app.post('/api/register', async (req, res) => {
     const { email, password, firstName, lastName, phone, major, graduationYear, campus } = req.body;
 
     try {
+        // Validate ASU email
+        if (!email.endsWith('@asu.edu')) {
+            return res.status(400).json({ error: 'Only ASU email addresses (@asu.edu) are allowed' });
+        }
+
         // Check if user already exists
         const existingUser = await new Promise((resolve, reject) => {
             db.get('SELECT * FROM users WHERE email = ?', [email], (err, row) => {
@@ -73,6 +115,9 @@ app.post('/api/register', async (req, res) => {
         // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
 
+        // Generate verification code
+        const verificationCode = crypto.randomBytes(32).toString('hex');
+
         // Create user
         const result = await new Promise((resolve, reject) => {
             db.run(`INSERT INTO users (email, password, first_name, last_name, phone, major, graduation_year, campus) 
@@ -85,14 +130,24 @@ app.post('/api/register', async (req, res) => {
             );
         });
 
-        // Create session
-        req.session.userId = result.id;
-        req.session.userEmail = email;
+        // Store verification code
+        await new Promise((resolve, reject) => {
+            db.run(`INSERT INTO email_verifications (user_id, verification_code) VALUES (?, ?)`,
+                [result.id, verificationCode],
+                function (err) {
+                    if (err) reject(err);
+                    else resolve();
+                }
+            );
+        });
+
+        // In a real application, you would send an email here
+        console.log(`Verification code for ${email}: ${verificationCode}`);
 
         res.json({
             success: true,
-            message: 'Registration successful',
-            user: { id: result.id, email, firstName, lastName }
+            message: 'Registration successful. Please check your email for verification.',
+            verificationCode: verificationCode // Only for development - remove in production
         });
     } catch (error) {
         console.error('Registration error:', error);
@@ -120,6 +175,18 @@ app.post('/api/login', async (req, res) => {
         const isValidPassword = await bcrypt.compare(password, user.password);
         if (!isValidPassword) {
             return res.status(400).json({ error: 'Invalid email or password' });
+        }
+
+        // Check if email is verified
+        const verification = await new Promise((resolve, reject) => {
+            db.get('SELECT * FROM email_verifications WHERE user_id = ? AND verified = 1', [user.id], (err, row) => {
+                if (err) reject(err);
+                else resolve(row);
+            });
+        });
+
+        if (!verification) {
+            return res.status(400).json({ error: 'Please verify your email before logging in' });
         }
 
         // Create session
@@ -151,6 +218,52 @@ app.post('/api/logout', (req, res) => {
     });
 });
 
+// Email verification routes
+app.post('/api/verify-email', async (req, res) => {
+    const { email, verificationCode } = req.body;
+
+    try {
+        // Find user and verification record
+        const verification = await new Promise((resolve, reject) => {
+            db.get(`
+                SELECT ev.*, u.email 
+                FROM email_verifications ev 
+                JOIN users u ON ev.user_id = u.id 
+                WHERE u.email = ? AND ev.verification_code = ? AND ev.verified = 0
+            `, [email, verificationCode], (err, row) => {
+                if (err) reject(err);
+                else resolve(row);
+            });
+        });
+
+        if (!verification) {
+            return res.status(400).json({ error: 'Invalid verification code' });
+        }
+
+        // Mark as verified
+        await new Promise((resolve, reject) => {
+            db.run('UPDATE email_verifications SET verified = 1 WHERE id = ?', 
+                [verification.id], (err) => {
+                    if (err) reject(err);
+                    else resolve();
+                });
+        });
+
+        // Create session
+        req.session.userId = verification.user_id;
+        req.session.userEmail = email;
+
+        res.json({
+            success: true,
+            message: 'Email verified successfully',
+            user: { id: verification.user_id, email }
+        });
+    } catch (error) {
+        console.error('Email verification error:', error);
+        res.status(500).json({ error: 'Verification failed' });
+    }
+});
+
 // Check authentication status
 app.get('/api/auth/check', (req, res) => {
     if (req.session.userId) {
@@ -166,7 +279,7 @@ app.get('/api/auth/check', (req, res) => {
 
 // Listings Routes
 app.get('/api/listings', (req, res) => {
-    const { category, search } = req.query;
+    const { category, search, sort } = req.query;
     let query = `
         SELECT l.*, u.first_name, u.last_name, u.email 
         FROM listings l 
@@ -185,14 +298,34 @@ app.get('/api/listings', (req, res) => {
         params.push(`%${search}%`, `%${search}%`);
     }
 
-    query += ' ORDER BY l.created_at DESC';
+    // Add sorting
+    switch (sort) {
+        case 'price_asc':
+            query += ' ORDER BY l.price ASC';
+            break;
+        case 'price_desc':
+            query += ' ORDER BY l.price DESC';
+            break;
+        case 'date_asc':
+            query += ' ORDER BY l.created_at ASC';
+            break;
+        case 'date_desc':
+        default:
+            query += ' ORDER BY l.created_at DESC';
+            break;
+    }
 
     db.all(query, params, (err, rows) => {
         if (err) {
             console.error('Error fetching listings:', err);
             res.status(500).json({ error: 'Failed to fetch listings' });
         } else {
-            res.json(rows);
+            // Parse images JSON for each listing
+            const listings = rows.map(row => ({
+                ...row,
+                images: row.images ? JSON.parse(row.images) : []
+            }));
+            res.json(listings);
         }
     });
 });
@@ -206,18 +339,33 @@ app.get('/api/listings/my', requireAuth, (req, res) => {
                 console.error('Error fetching user listings:', err);
                 res.status(500).json({ error: 'Failed to fetch listings' });
             } else {
-                res.json(rows);
+                // Parse images JSON for each listing
+                const listings = rows.map(row => ({
+                    ...row,
+                    images: row.images ? JSON.parse(row.images) : []
+                }));
+                res.json(listings);
             }
         }
     );
 });
 
-app.post('/api/listings', requireAuth, (req, res) => {
+app.post('/api/listings', requireAuth, upload.array('images', 5), (req, res) => {
     const { title, description, category, price } = req.body;
 
+    // Validate category
+    const validCategories = ['Job', 'Books', 'Furniture', 'Technology', 'Services', 'Miscellaneous'];
+    if (!validCategories.includes(category)) {
+        return res.status(400).json({ error: 'Invalid category' });
+    }
+
+    // Process uploaded images
+    const images = req.files ? req.files.map(file => file.filename) : [];
+    const imagesJson = JSON.stringify(images);
+
     db.run(
-        'INSERT INTO listings (user_id, title, description, category, price) VALUES (?, ?, ?, ?, ?)',
-        [req.session.userId, title, description, category, price || null],
+        'INSERT INTO listings (user_id, title, description, category, price, images) VALUES (?, ?, ?, ?, ?, ?)',
+        [req.session.userId, title, description, category, price || null, imagesJson],
         function (err) {
             if (err) {
                 console.error('Error creating listing:', err);

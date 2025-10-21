@@ -125,15 +125,22 @@
                 Category:
                 <select name="category" required>
                     <option value="">Select</option>
-                    <option value="For Sale">For Sale</option>
-                    <option value="Jobs">Jobs</option>
-                    <option value="Housing">Housing</option>
+                    <option value="Job">Job</option>
+                    <option value="Books">Books</option>
+                    <option value="Furniture">Furniture</option>
+                    <option value="Technology">Technology</option>
                     <option value="Services">Services</option>
+                    <option value="Miscellaneous">Miscellaneous</option>
                 </select>
             </label>
             <label>
                 Price:
                 <input type="number" name="price" min="0" step="0.01">
+            </label>
+            <label>
+                Images (up to 5):
+                <input type="file" name="images" multiple accept="image/*" id="imageInput">
+                <div id="imagePreview" style="margin-top: 10px;"></div>
             </label>
             <button type="submit">Post</button>
         </form>
@@ -142,26 +149,98 @@
         <ul id="listings"></ul>
     </main>
     <script>
-        const form = document.getElementById('listingForm');
-        const listings = document.getElementById('listings');
+        // Check authentication on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            checkAuthStatus();
+            setupImagePreview();
+        });
 
-        form.addEventListener('submit', function (e) {
+        async function checkAuthStatus() {
+            try {
+                const response = await fetch('/api/auth/check');
+                const data = await response.json();
+                
+                if (!data.authenticated) {
+                    alert('You must be logged in to post a listing.');
+                    window.location.href = '/login.html';
+                    return;
+                }
+            } catch (error) {
+                console.error('Auth check failed:', error);
+                alert('You must be logged in to post a listing.');
+                window.location.href = '/login.html';
+            }
+        }
+
+        function setupImagePreview() {
+            const imageInput = document.getElementById('imageInput');
+            const imagePreview = document.getElementById('imagePreview');
+
+            imageInput.addEventListener('change', function(e) {
+                const files = Array.from(e.target.files);
+                
+                if (files.length > 5) {
+                    alert('You can only upload up to 5 images.');
+                    imageInput.value = '';
+                    return;
+                }
+
+                imagePreview.innerHTML = '';
+                
+                files.forEach((file, index) => {
+                    if (file.type.startsWith('image/')) {
+                        const reader = new FileReader();
+                        reader.onload = function(e) {
+                            const img = document.createElement('img');
+                            img.src = e.target.result;
+                            img.style.width = '100px';
+                            img.style.height = '100px';
+                            img.style.objectFit = 'cover';
+                            img.style.margin = '5px';
+                            img.style.borderRadius = '4px';
+                            imagePreview.appendChild(img);
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                });
+            });
+        }
+
+        document.getElementById('listingForm').addEventListener('submit', async function(e) {
             e.preventDefault();
-            const data = new FormData(form);
-            const title = data.get('title');
-            const description = data.get('description');
-            const category = data.get('category');
-            const price = data.get('price');
 
-            const li = document.createElement('li');
-            li.innerHTML = `
-                <span class="category">${category}</span>
-                <h3>${title}</h3>
-                <p>${description}</p>
-                ${price ? `<p><strong>Price:</strong> $${parseFloat(price).toFixed(2)}</p>` : ''}
-            `;
-            listings.prepend(li);
-            form.reset();
+            const formData = new FormData(this);
+            const submitBtn = this.querySelector('button[type="submit"]');
+            
+            // Disable submit button
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Posting...';
+
+            try {
+                const response = await fetch('/api/listings', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert('Listing posted successfully!');
+                    this.reset();
+                    document.getElementById('imagePreview').innerHTML = '';
+                    // Redirect to home page
+                    window.location.href = '/home.html';
+                } else {
+                    alert('Error: ' + (data.error || 'Failed to post listing'));
+                }
+            } catch (error) {
+                console.error('Error posting listing:', error);
+                alert('Network error. Please try again.');
+            } finally {
+                // Re-enable submit button
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Post';
+            }
         });
     </script>
 </body>

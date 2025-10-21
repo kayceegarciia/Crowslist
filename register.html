@@ -295,13 +295,13 @@
                 const data = await response.json();
 
                 if (data.success) {
-                    successDiv.textContent = 'Account created successfully! Redirecting...';
+                    successDiv.textContent = 'Account created successfully! Please check your email for verification.';
                     successDiv.style.display = 'block';
 
-                    // Redirect to home page after a short delay
+                    // Redirect to verification page after a short delay
                     setTimeout(() => {
-                        window.location.href = '/';
-                    }, 1500);
+                        window.location.href = '/verify-email.html';
+                    }, 2000);
                 } else {
                     errorDiv.textContent = data.error || 'Registration failed';
                     errorDiv.style.display = 'block';

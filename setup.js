@@ -36,8 +36,19 @@ db.serialize(() => {
         category TEXT NOT NULL,
         price DECIMAL(10,2),
         status TEXT DEFAULT 'active',
+        images TEXT, -- JSON array of image filenames
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users (id)
+    )`);
+
+    // Email verification table
+    db.run(`CREATE TABLE IF NOT EXISTS email_verifications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        verification_code TEXT NOT NULL,
+        verified INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users (id)
     )`);
 
@@ -73,22 +84,32 @@ db.serialize(() => {
     db.run(`INSERT OR IGNORE INTO listings 
         (user_id, title, description, category, price, status) 
         VALUES 
-        (1, 'Textbook: Calculus Early Transcendentals', 'Barely used textbook for MAT 270. Great condition, no highlighting or writing.', 'For Sale', 120.00, 'active')`);
+        (1, 'Textbook: Calculus Early Transcendentals', 'Barely used textbook for MAT 270. Great condition, no highlighting or writing.', 'Books', 120.00, 'active')`);
 
     db.run(`INSERT OR IGNORE INTO listings 
         (user_id, title, description, category, price, status) 
         VALUES 
-        (1, 'MacBook Pro 13" - Excellent Condition', '2019 MacBook Pro, barely used. Perfect for students. Includes original charger and box.', 'For Sale', 800.00, 'active')`);
+        (1, 'MacBook Pro 13" - Excellent Condition', '2019 MacBook Pro, barely used. Perfect for students. Includes original charger and box.', 'Technology', 800.00, 'active')`);
 
     db.run(`INSERT OR IGNORE INTO listings 
         (user_id, title, description, category, price, status) 
         VALUES 
-        (2, 'Roommate Needed - Vista del Sol', 'Looking for a roommate to share a 2BR apartment near campus. $650/month including utilities.', 'Housing', 650.00, 'active')`);
+        (2, 'Roommate Needed - Vista del Sol', 'Looking for a roommate to share a 2BR apartment near campus. $650/month including utilities.', 'Miscellaneous', 650.00, 'active')`);
 
     db.run(`INSERT OR IGNORE INTO listings 
         (user_id, title, description, category, price, status) 
         VALUES 
-        (2, 'Tutor Needed for Computer Science', 'Need help with CSE 110 assignments. Flexible schedule, good pay.', 'Jobs', 25.00, 'active')`);
+        (2, 'Tutor Needed for Computer Science', 'Need help with CSE 110 assignments. Flexible schedule, good pay.', 'Services', 25.00, 'active')`);
+
+    db.run(`INSERT OR IGNORE INTO listings 
+        (user_id, title, description, category, price, status) 
+        VALUES 
+        (1, 'Office Chair - Herman Miller', 'Ergonomic office chair in excellent condition. Perfect for long study sessions.', 'Furniture', 150.00, 'active')`);
+
+    db.run(`INSERT OR IGNORE INTO listings 
+        (user_id, title, description, category, price, status) 
+        VALUES 
+        (2, 'Part-time Research Assistant', 'Looking for undergraduate research assistant for psychology study. $15/hour.', 'Job', 15.00, 'active')`);
 
     console.log('Database setup complete!');
     console.log('Sample users created:');
