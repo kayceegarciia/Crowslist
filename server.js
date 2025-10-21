@@ -1,5 +1,5 @@
 const express = require('express');
-const sqlite3 = require('sqlite3').verbose();
+const { sql } = require('@vercel/postgres');
 const bcrypt = require('bcryptjs');
 const session = require('express-session');
 const cors = require('cors');
@@ -11,8 +11,8 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Database connection
-const db = new sqlite3.Database('crowslist.db');
+// Database connection - using Vercel Postgres
+// No need to initialize connection, @vercel/postgres handles it
 
 // Configure multer for image uploads
 const storage = multer.diskStorage({
@@ -101,14 +101,9 @@ app.post('/api/register', async (req, res) => {
         }
 
         // Check if user already exists
-        const existingUser = await new Promise((resolve, reject) => {
-            db.get('SELECT * FROM users WHERE email = ?', [email], (err, row) => {
-                if (err) reject(err);
-                else resolve(row);
-            });
-        });
+        const existingUser = await sql`SELECT * FROM users WHERE email = ${email}`;
 
-        if (existingUser) {
+        if (existingUser.rows.length > 0) {
             return res.status(400).json({ error: 'User already exists with this email' });
         }
 
@@ -119,27 +114,19 @@ app.post('/api/register', async (req, res) => {
         const verificationCode = crypto.randomBytes(32).toString('hex');
 
         // Create user
-        const result = await new Promise((resolve, reject) => {
-            db.run(`INSERT INTO users (email, password, first_name, last_name, phone, major, graduation_year, campus) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                [email, hashedPassword, firstName, lastName, phone, major, graduationYear, campus],
-                function (err) {
-                    if (err) reject(err);
-                    else resolve({ id: this.lastID });
-                }
-            );
-        });
+        const result = await sql`
+            INSERT INTO users (email, password, first_name, last_name, phone, major, graduation_year, campus) 
+            VALUES (${email}, ${hashedPassword}, ${firstName}, ${lastName}, ${phone}, ${major}, ${graduationYear}, ${campus})
+            RETURNING id
+        `;
+
+        const userId = result.rows[0].id;
 
         // Store verification code
-        await new Promise((resolve, reject) => {
-            db.run(`INSERT INTO email_verifications (user_id, verification_code) VALUES (?, ?)`,
-                [result.id, verificationCode],
-                function (err) {
-                    if (err) reject(err);
-                    else resolve();
-                }
-            );
-        });
+        await sql`
+            INSERT INTO email_verifications (user_id, verification_code) 
+            VALUES (${userId}, ${verificationCode})
+        `;
 
         // In a real application, you would send an email here
         console.log(`Verification code for ${email}: ${verificationCode}`);
@@ -160,16 +147,13 @@ app.post('/api/login', async (req, res) => {
 
     try {
         // Find user
-        const user = await new Promise((resolve, reject) => {
-            db.get('SELECT * FROM users WHERE email = ?', [email], (err, row) => {
-                if (err) reject(err);
-                else resolve(row);
-            });
-        });
-
-        if (!user) {
+        const userResult = await sql`SELECT * FROM users WHERE email = ${email}`;
+        
+        if (userResult.rows.length === 0) {
             return res.status(400).json({ error: 'Invalid email or password' });
         }
+
+        const user = userResult.rows[0];
 
         // Check password
         const isValidPassword = await bcrypt.compare(password, user.password);
@@ -178,14 +162,12 @@ app.post('/api/login', async (req, res) => {
         }
 
         // Check if email is verified
-        const verification = await new Promise((resolve, reject) => {
-            db.get('SELECT * FROM email_verifications WHERE user_id = ? AND verified = 1', [user.id], (err, row) => {
-                if (err) reject(err);
-                else resolve(row);
-            });
-        });
+        const verificationResult = await sql`
+            SELECT * FROM email_verifications 
+            WHERE user_id = ${user.id} AND verified = 1
+        `;
 
-        if (!verification) {
+        if (verificationResult.rows.length === 0) {
             return res.status(400).json({ error: 'Please verify your email before logging in' });
         }
 
@@ -224,30 +206,25 @@ app.post('/api/verify-email', async (req, res) => {
 
     try {
         // Find user and verification record
-        const verification = await new Promise((resolve, reject) => {
-            db.get(`
-                SELECT ev.*, u.email 
-                FROM email_verifications ev 
-                JOIN users u ON ev.user_id = u.id 
-                WHERE u.email = ? AND ev.verification_code = ? AND ev.verified = 0
-            `, [email, verificationCode], (err, row) => {
-                if (err) reject(err);
-                else resolve(row);
-            });
-        });
+        const verificationResult = await sql`
+            SELECT ev.*, u.email 
+            FROM email_verifications ev 
+            JOIN users u ON ev.user_id = u.id 
+            WHERE u.email = ${email} AND ev.verification_code = ${verificationCode} AND ev.verified = 0
+        `;
 
-        if (!verification) {
+        if (verificationResult.rows.length === 0) {
             return res.status(400).json({ error: 'Invalid verification code' });
         }
 
+        const verification = verificationResult.rows[0];
+
         // Mark as verified
-        await new Promise((resolve, reject) => {
-            db.run('UPDATE email_verifications SET verified = 1 WHERE id = ?', 
-                [verification.id], (err) => {
-                    if (err) reject(err);
-                    else resolve();
-                });
-        });
+        await sql`
+            UPDATE email_verifications 
+            SET verified = 1 
+            WHERE id = ${verification.id}
+        `;
 
         // Create session
         req.session.userId = verification.user_id;
@@ -278,221 +255,246 @@ app.get('/api/auth/check', (req, res) => {
 });
 
 // Listings Routes
-app.get('/api/listings', (req, res) => {
+app.get('/api/listings', async (req, res) => {
     const { category, search, sort } = req.query;
-    let query = `
-        SELECT l.*, u.first_name, u.last_name, u.email 
-        FROM listings l 
-        JOIN users u ON l.user_id = u.id 
-        WHERE l.status = 'active'
-    `;
-    const params = [];
 
-    if (category) {
-        query += ' AND l.category = ?';
-        params.push(category);
-    }
+    try {
+        let query = sql`
+            SELECT l.*, u.first_name, u.last_name, u.email 
+            FROM listings l 
+            JOIN users u ON l.user_id = u.id 
+            WHERE l.status = 'active'
+        `;
 
-    if (search) {
-        query += ' AND (l.title LIKE ? OR l.description LIKE ?)';
-        params.push(`%${search}%`, `%${search}%`);
-    }
-
-    // Add sorting
-    switch (sort) {
-        case 'price_asc':
-            query += ' ORDER BY l.price ASC';
-            break;
-        case 'price_desc':
-            query += ' ORDER BY l.price DESC';
-            break;
-        case 'date_asc':
-            query += ' ORDER BY l.created_at ASC';
-            break;
-        case 'date_desc':
-        default:
-            query += ' ORDER BY l.created_at DESC';
-            break;
-    }
-
-    db.all(query, params, (err, rows) => {
-        if (err) {
-            console.error('Error fetching listings:', err);
-            res.status(500).json({ error: 'Failed to fetch listings' });
-        } else {
-            // Parse images JSON for each listing
-            const listings = rows.map(row => ({
-                ...row,
-                images: row.images ? JSON.parse(row.images) : []
-            }));
-            res.json(listings);
+        if (category) {
+            query = sql`
+                SELECT l.*, u.first_name, u.last_name, u.email 
+                FROM listings l 
+                JOIN users u ON l.user_id = u.id 
+                WHERE l.status = 'active' AND l.category = ${category}
+            `;
         }
-    });
+
+        if (search) {
+            const searchTerm = `%${search}%`;
+            query = sql`
+                SELECT l.*, u.first_name, u.last_name, u.email 
+                FROM listings l 
+                JOIN users u ON l.user_id = u.id 
+                WHERE l.status = 'active' 
+                AND (l.title ILIKE ${searchTerm} OR l.description ILIKE ${searchTerm})
+            `;
+        }
+
+        if (category && search) {
+            const searchTerm = `%${search}%`;
+            query = sql`
+                SELECT l.*, u.first_name, u.last_name, u.email 
+                FROM listings l 
+                JOIN users u ON l.user_id = u.id 
+                WHERE l.status = 'active' 
+                AND l.category = ${category}
+                AND (l.title ILIKE ${searchTerm} OR l.description ILIKE ${searchTerm})
+            `;
+        }
+
+        // Add sorting
+        let orderBy = 'ORDER BY l.created_at DESC';
+        switch (sort) {
+            case 'price_asc':
+                orderBy = 'ORDER BY l.price ASC';
+                break;
+            case 'price_desc':
+                orderBy = 'ORDER BY l.price DESC';
+                break;
+            case 'date_asc':
+                orderBy = 'ORDER BY l.created_at ASC';
+                break;
+            case 'date_desc':
+            default:
+                orderBy = 'ORDER BY l.created_at DESC';
+                break;
+        }
+
+        // Execute query with ordering
+        const result = await sql`${query} ${sql.unsafe(orderBy)}`;
+        
+        // Parse images JSON for each listing
+        const listings = result.rows.map(row => ({
+            ...row,
+            images: row.images ? JSON.parse(row.images) : []
+        }));
+        
+        res.json(listings);
+    } catch (error) {
+        console.error('Error fetching listings:', error);
+        res.status(500).json({ error: 'Failed to fetch listings' });
+    }
 });
 
-app.get('/api/listings/my', requireAuth, (req, res) => {
-    db.all(
-        'SELECT * FROM listings WHERE user_id = ? ORDER BY created_at DESC',
-        [req.session.userId],
-        (err, rows) => {
-            if (err) {
-                console.error('Error fetching user listings:', err);
-                res.status(500).json({ error: 'Failed to fetch listings' });
-            } else {
-                // Parse images JSON for each listing
-                const listings = rows.map(row => ({
-                    ...row,
-                    images: row.images ? JSON.parse(row.images) : []
-                }));
-                res.json(listings);
-            }
-        }
-    );
+app.get('/api/listings/my', requireAuth, async (req, res) => {
+    try {
+        const result = await sql`
+            SELECT * FROM listings 
+            WHERE user_id = ${req.session.userId} 
+            ORDER BY created_at DESC
+        `;
+        
+        // Parse images JSON for each listing
+        const listings = result.rows.map(row => ({
+            ...row,
+            images: row.images ? JSON.parse(row.images) : []
+        }));
+        
+        res.json(listings);
+    } catch (error) {
+        console.error('Error fetching user listings:', error);
+        res.status(500).json({ error: 'Failed to fetch listings' });
+    }
 });
 
-app.post('/api/listings', requireAuth, upload.array('images', 5), (req, res) => {
+app.post('/api/listings', requireAuth, upload.array('images', 5), async (req, res) => {
     const { title, description, category, price } = req.body;
 
-    // Validate category
-    const validCategories = ['Job', 'Books', 'Furniture', 'Technology', 'Services', 'Miscellaneous'];
-    if (!validCategories.includes(category)) {
-        return res.status(400).json({ error: 'Invalid category' });
-    }
-
-    // Process uploaded images
-    const images = req.files ? req.files.map(file => file.filename) : [];
-    const imagesJson = JSON.stringify(images);
-
-    db.run(
-        'INSERT INTO listings (user_id, title, description, category, price, images) VALUES (?, ?, ?, ?, ?, ?)',
-        [req.session.userId, title, description, category, price || null, imagesJson],
-        function (err) {
-            if (err) {
-                console.error('Error creating listing:', err);
-                res.status(500).json({ error: 'Failed to create listing' });
-            } else {
-                res.json({
-                    success: true,
-                    listingId: this.lastID,
-                    message: 'Listing created successfully'
-                });
-            }
+    try {
+        // Validate category
+        const validCategories = ['Job', 'Books', 'Furniture', 'Technology', 'Services', 'Miscellaneous'];
+        if (!validCategories.includes(category)) {
+            return res.status(400).json({ error: 'Invalid category' });
         }
-    );
+
+        // Process uploaded images
+        const images = req.files ? req.files.map(file => file.filename) : [];
+        const imagesJson = JSON.stringify(images);
+
+        const result = await sql`
+            INSERT INTO listings (user_id, title, description, category, price, images) 
+            VALUES (${req.session.userId}, ${title}, ${description}, ${category}, ${price || null}, ${imagesJson})
+            RETURNING id
+        `;
+
+        res.json({
+            success: true,
+            listingId: result.rows[0].id,
+            message: 'Listing created successfully'
+        });
+    } catch (error) {
+        console.error('Error creating listing:', error);
+        res.status(500).json({ error: 'Failed to create listing' });
+    }
 });
 
-app.put('/api/listings/:id', requireAuth, (req, res) => {
+app.put('/api/listings/:id', requireAuth, async (req, res) => {
     const { title, description, category, price } = req.body;
     const listingId = req.params.id;
 
-    // First check if the listing belongs to the user
-    db.get(
-        'SELECT * FROM listings WHERE id = ? AND user_id = ?',
-        [listingId, req.session.userId],
-        (err, row) => {
-            if (err || !row) {
-                return res.status(404).json({ error: 'Listing not found or unauthorized' });
-            }
+    try {
+        // First check if the listing belongs to the user
+        const listingResult = await sql`
+            SELECT * FROM listings 
+            WHERE id = ${listingId} AND user_id = ${req.session.userId}
+        `;
 
-            db.run(
-                'UPDATE listings SET title = ?, description = ?, category = ?, price = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-                [title, description, category, price || null, listingId],
-                function (err) {
-                    if (err) {
-                        console.error('Error updating listing:', err);
-                        res.status(500).json({ error: 'Failed to update listing' });
-                    } else {
-                        res.json({ success: true, message: 'Listing updated successfully' });
-                    }
-                }
-            );
+        if (listingResult.rows.length === 0) {
+            return res.status(404).json({ error: 'Listing not found or unauthorized' });
         }
-    );
+
+        await sql`
+            UPDATE listings 
+            SET title = ${title}, description = ${description}, category = ${category}, 
+                price = ${price || null}, updated_at = CURRENT_TIMESTAMP 
+            WHERE id = ${listingId}
+        `;
+
+        res.json({ success: true, message: 'Listing updated successfully' });
+    } catch (error) {
+        console.error('Error updating listing:', error);
+        res.status(500).json({ error: 'Failed to update listing' });
+    }
 });
 
-app.put('/api/listings/:id/status', requireAuth, (req, res) => {
+app.put('/api/listings/:id/status', requireAuth, async (req, res) => {
     const { status } = req.body;
     const listingId = req.params.id;
 
-    db.run(
-        'UPDATE listings SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?',
-        [status, listingId, req.session.userId],
-        function (err) {
-            if (err) {
-                console.error('Error updating listing status:', err);
-                res.status(500).json({ error: 'Failed to update listing status' });
-            } else if (this.changes === 0) {
-                res.status(404).json({ error: 'Listing not found or unauthorized' });
-            } else {
-                res.json({ success: true, message: 'Listing status updated successfully' });
-            }
+    try {
+        const result = await sql`
+            UPDATE listings 
+            SET status = ${status}, updated_at = CURRENT_TIMESTAMP 
+            WHERE id = ${listingId} AND user_id = ${req.session.userId}
+        `;
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({ error: 'Listing not found or unauthorized' });
         }
-    );
+
+        res.json({ success: true, message: 'Listing status updated successfully' });
+    } catch (error) {
+        console.error('Error updating listing status:', error);
+        res.status(500).json({ error: 'Failed to update listing status' });
+    }
 });
 
-app.delete('/api/listings/:id', requireAuth, (req, res) => {
+app.delete('/api/listings/:id', requireAuth, async (req, res) => {
     const listingId = req.params.id;
 
-    db.run(
-        'DELETE FROM listings WHERE id = ? AND user_id = ?',
-        [listingId, req.session.userId],
-        function (err) {
-            if (err) {
-                console.error('Error deleting listing:', err);
-                res.status(500).json({ error: 'Failed to delete listing' });
-            } else if (this.changes === 0) {
-                res.status(404).json({ error: 'Listing not found or unauthorized' });
-            } else {
-                res.json({ success: true, message: 'Listing deleted successfully' });
-            }
+    try {
+        const result = await sql`
+            DELETE FROM listings 
+            WHERE id = ${listingId} AND user_id = ${req.session.userId}
+        `;
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({ error: 'Listing not found or unauthorized' });
         }
-    );
+
+        res.json({ success: true, message: 'Listing deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting listing:', error);
+        res.status(500).json({ error: 'Failed to delete listing' });
+    }
 });
 
 // User Profile Routes
-app.get('/api/profile', requireAuth, (req, res) => {
-    db.get(
-        'SELECT id, email, first_name, last_name, phone, major, graduation_year, campus, bio, preferred_contact, notifications, messages FROM users WHERE id = ?',
-        [req.session.userId],
-        (err, row) => {
-            if (err) {
-                console.error('Error fetching profile:', err);
-                res.status(500).json({ error: 'Failed to fetch profile' });
-            } else if (!row) {
-                res.status(404).json({ error: 'User not found' });
-            } else {
-                res.json(row);
-            }
+app.get('/api/profile', requireAuth, async (req, res) => {
+    try {
+        const result = await sql`
+            SELECT id, email, first_name, last_name, phone, major, graduation_year, campus, bio, preferred_contact, notifications, messages 
+            FROM users 
+            WHERE id = ${req.session.userId}
+        `;
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
         }
-    );
+
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error('Error fetching profile:', error);
+        res.status(500).json({ error: 'Failed to fetch profile' });
+    }
 });
 
-app.put('/api/profile', requireAuth, (req, res) => {
+app.put('/api/profile', requireAuth, async (req, res) => {
     const {
         firstName, lastName, phone, major, graduationYear,
         campus, bio, preferredContact, notifications, messages
     } = req.body;
 
-    db.run(
-        `UPDATE users SET 
-            first_name = ?, last_name = ?, phone = ?, major = ?, 
-            graduation_year = ?, campus = ?, bio = ?, preferred_contact = ?, 
-            notifications = ?, messages = ?, updated_at = CURRENT_TIMESTAMP 
-         WHERE id = ?`,
-        [
-            firstName, lastName, phone, major, graduationYear,
-            campus, bio, preferredContact, notifications ? 1 : 0,
-            messages ? 1 : 0, req.session.userId
-        ],
-        function (err) {
-            if (err) {
-                console.error('Error updating profile:', err);
-                res.status(500).json({ error: 'Failed to update profile' });
-            } else {
-                res.json({ success: true, message: 'Profile updated successfully' });
-            }
-        }
-    );
+    try {
+        await sql`
+            UPDATE users SET 
+                first_name = ${firstName}, last_name = ${lastName}, phone = ${phone}, major = ${major}, 
+                graduation_year = ${graduationYear}, campus = ${campus}, bio = ${bio}, preferred_contact = ${preferredContact}, 
+                notifications = ${notifications ? 1 : 0}, messages = ${messages ? 1 : 0}, updated_at = CURRENT_TIMESTAMP 
+            WHERE id = ${req.session.userId}
+        `;
+
+        res.json({ success: true, message: 'Profile updated successfully' });
+    } catch (error) {
+        console.error('Error updating profile:', error);
+        res.status(500).json({ error: 'Failed to update profile' });
+    }
 });
 
 // Start server
